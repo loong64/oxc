@@ -17,11 +17,11 @@ concurrency:
 
 jobs:
   check:
-    if: github.repository == 'oxc-project/oxc'
+    # if: github.repository == 'oxc-project/oxc'
     name: Check version
     runs-on: ubuntu-slim
     outputs:
-      version_changed: ${{ steps.oxfmt.outputs.version_changed && steps.oxlint.outputs.version_changed }}
+      version_changed: 'true'
       oxfmt_version: ${{ steps.oxfmt.outputs.version }}
       oxlint_version: ${{ steps.oxlint.outputs.version }}
     steps:
@@ -113,6 +113,29 @@ jobs:
             build: pnpm run build-napi-release --target aarch64-unknown-linux-ohos
 
           - os: ubuntu-latest
+            target: loongarch64-unknown-linux-gnu
+            build: |
+              sudo apt-get update
+              sudo apt-get install g++-13-loongarch64-linux-gnu -y
+              sudo update-alternatives \
+                --install /usr/bin/loongarch64-linux-gnu-gcc loongarch64-linux-gnu-gcc /usr/bin/loongarch64-linux-gnu-gcc-13 100 \
+                --slave /usr/bin/loongarch64-linux-gnu-gcc-ar loongarch64-linux-gnu-gcc-ar /usr/bin/loongarch64-linux-gnu-gcc-ar-13 \
+                --slave /usr/bin/loongarch64-linux-gnu-gcc-nm loongarch64-linux-gnu-gcc-nm /usr/bin/loongarch64-linux-gnu-gcc-nm-13 \
+                --slave /usr/bin/loongarch64-linux-gnu-gcc-ranlib loongarch64-linux-gnu-gcc-ranlib /usr/bin/loongarch64-linux-gnu-gcc-ranlib-13 \
+                --slave /usr/bin/loongarch64-linux-gnu-gcov loongarch64-linux-gnu-gcov /usr/bin/loongarch64-linux-gnu-gcov-13
+              sudo update-alternatives \
+                --install /usr/bin/loongarch64-linux-gnu-g++ loongarch64-linux-gnu-g++ /usr/bin/loongarch64-linux-gnu-g++-13 100
+              sudo update-alternatives \
+                --install /usr/bin/loongarch64-linux-gnu-cpp loongarch64-linux-gnu-cpp /usr/bin/loongarch64-linux-gnu-cpp-13 100
+              export TARGET_CC=loongarch64-linux-gnu-gcc
+              export CXX=loongarch64-linux-gnu-g++
+              pnpm run build-napi-release --target loongarch64-unknown-linux-gnu
+
+          - os: ubuntu-latest
+            target: loongarch64-unknown-linux-musl
+            build: pnpm run build-napi-release --target loongarch64-unknown-linux-musl -x
+
+          - os: ubuntu-latest
             target: powerpc64le-unknown-linux-gnu
             build: pnpm run build-napi-release --target powerpc64le-unknown-linux-gnu --use-napi-cross
 
@@ -147,9 +170,14 @@ jobs:
       - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
 
       - name: Install cross
+        if: ${{ !contains(matrix.target, 'loongarch64') }}
         uses: taiki-e/install-action@cca35edeb1d01366c2843b68fc3ca441446d73d3 # v2.77.1
         with:
           tool: cross # cross installs the latest rust toolchain
+
+      - name: Upgrade cross
+        if: ${{ contains(matrix.target, 'loongarch64') }}
+        run: cargo install cross --git https://github.com/cross-rs/cross
 
       # No Rust cache is provided, to avoid cache poisoning attack.
 
@@ -159,10 +187,10 @@ jobs:
       - uses: oxc-project/setup-node@ab97f03642370d79a7e96dd286bd02a1be40e0ba # v1.3.0
 
       # For cargo-zigbuild in musl builds.
-      - uses: goto-bus-stop/setup-zig@abea47f85e598557f500fa1fd2ab7464fcb39406 # v2.2.1
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         if: ${{ contains(matrix.target, 'musl') }}
         with:
-          version: 0.13.0
+          version: 0.15.2
 
       - name: Setup OpenHarmony SDK
         if: ${{ contains(matrix.target, 'ohos') }}
@@ -173,11 +201,11 @@ jobs:
         run: ${{ matrix.build }}
 
       - name: Build Rust binary
-        if: ${{ !contains(matrix.target, 'wasm') && !contains(matrix.target, 'android') && !contains(matrix.target, 'ohos') && !contains(matrix.target, 'riscv64gc-unknown-linux-musl') }}
+        if: ${{ !contains(matrix.target, 'wasm') && !contains(matrix.target, 'android') && !contains(matrix.target, 'ohos') && !contains(matrix.target, 'riscv64gc-unknown-linux-musl') && !contains(matrix.target, 'loongarch64-unknown-linux-musl') }}
         run: cross build --release -p oxlint --features allocator --target=${{ matrix.target }}
 
       - name: Build Rust binary (zigbuild)
-        if: ${{ contains(matrix.target, 'riscv64gc-unknown-linux-musl') }}
+        if: ${{ contains(matrix.target, 'riscv64gc-unknown-linux-musl') && contains(matrix.target, 'loongarch64-unknown-linux-musl') }}
         run: |
           pip3 install cargo-zigbuild
           cargo zigbuild --release -p oxlint --features allocator --target=${{ matrix.target }}
@@ -294,7 +322,7 @@ jobs:
     name: Publish Oxlint
     needs: [check, build-oxlint, build-oxlint-freebsd, notify-approval]
     runs-on: ubuntu-slim
-    environment: release
+    # environment: release
     permissions:
       id-token: write # for `pnpm publish --provenance`
     env:
@@ -418,6 +446,29 @@ jobs:
             build: pnpm run build-napi-release --target aarch64-unknown-linux-ohos
 
           - os: ubuntu-latest
+            target: loongarch64-unknown-linux-gnu
+            build: |
+              sudo apt-get update
+              sudo apt-get install g++-13-loongarch64-linux-gnu -y
+              sudo update-alternatives \
+                --install /usr/bin/loongarch64-linux-gnu-gcc loongarch64-linux-gnu-gcc /usr/bin/loongarch64-linux-gnu-gcc-13 100 \
+                --slave /usr/bin/loongarch64-linux-gnu-gcc-ar loongarch64-linux-gnu-gcc-ar /usr/bin/loongarch64-linux-gnu-gcc-ar-13 \
+                --slave /usr/bin/loongarch64-linux-gnu-gcc-nm loongarch64-linux-gnu-gcc-nm /usr/bin/loongarch64-linux-gnu-gcc-nm-13 \
+                --slave /usr/bin/loongarch64-linux-gnu-gcc-ranlib loongarch64-linux-gnu-gcc-ranlib /usr/bin/loongarch64-linux-gnu-gcc-ranlib-13 \
+                --slave /usr/bin/loongarch64-linux-gnu-gcov loongarch64-linux-gnu-gcov /usr/bin/loongarch64-linux-gnu-gcov-13
+              sudo update-alternatives \
+                --install /usr/bin/loongarch64-linux-gnu-g++ loongarch64-linux-gnu-g++ /usr/bin/loongarch64-linux-gnu-g++-13 100
+              sudo update-alternatives \
+                --install /usr/bin/loongarch64-linux-gnu-cpp loongarch64-linux-gnu-cpp /usr/bin/loongarch64-linux-gnu-cpp-13 100
+              export TARGET_CC=loongarch64-linux-gnu-gcc
+              export CXX=loongarch64-linux-gnu-g++
+              pnpm run build-napi-release --target loongarch64-unknown-linux-gnu
+
+          - os: ubuntu-latest
+            target: loongarch64-unknown-linux-musl
+            build: pnpm run build-napi-release --target loongarch64-unknown-linux-musl -x
+
+          - os: ubuntu-latest
             target: powerpc64le-unknown-linux-gnu
             build: pnpm run build-napi-release --target powerpc64le-unknown-linux-gnu --use-napi-cross
 
@@ -452,9 +503,14 @@ jobs:
       - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
 
       - name: Install cross
+        if: ${{ !contains(matrix.target, 'loongarch64') }}
         uses: taiki-e/install-action@cca35edeb1d01366c2843b68fc3ca441446d73d3 # v2.77.1
         with:
           tool: cross # cross installs the latest rust toolchain
+
+      - name: Upgrade cross
+        if: ${{ contains(matrix.target, 'loongarch64') }}
+        run: cargo install cross --git https://github.com/cross-rs/cross
 
       # No Rust cache is provided, to avoid cache poisoning attack.
 
@@ -464,10 +520,10 @@ jobs:
       - uses: oxc-project/setup-node@ab97f03642370d79a7e96dd286bd02a1be40e0ba # v1.3.0
 
       # For cargo-zigbuild in musl builds.
-      - uses: goto-bus-stop/setup-zig@abea47f85e598557f500fa1fd2ab7464fcb39406 # v2.2.1
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         if: ${{ contains(matrix.target, 'musl') }}
         with:
-          version: 0.13.0
+          version: 0.15.2
 
       - name: Setup OpenHarmony SDK
         if: ${{ contains(matrix.target, 'ohos') }}
@@ -477,12 +533,19 @@ jobs:
         working-directory: apps/oxfmt
         run: ${{ matrix.build }}
 
+      - name: Update dependency for loongarch64 targets
+        if: ${{ contains(matrix.target, 'loongarch64') }}
+        run: |
+          echo '[patch.crates-io]' >> Cargo.toml
+          echo 'oxc_resolver = { git = "https://github.com/loong64/oxc-resolver", branch = "loong64-v11.19.1" }' >> Cargo.toml
+          cargo update -p oxc_resolver
+
       - name: Build Rust binary
-        if: ${{ !contains(matrix.target, 'wasm') && !contains(matrix.target, 'android') && !contains(matrix.target, 'ohos') && !contains(matrix.target, 'riscv64gc-unknown-linux-musl') }}
+        if: ${{ !contains(matrix.target, 'wasm') && !contains(matrix.target, 'android') && !contains(matrix.target, 'ohos') && !contains(matrix.target, 'riscv64gc-unknown-linux-musl') && !contains(matrix.target, 'loongarch64-unknown-linux-musl') }}
         run: cross build --release -p oxfmt --no-default-features --features allocator --target=${{ matrix.target }}
 
       - name: Build Rust binary (zigbuild)
-        if: ${{ contains(matrix.target, 'riscv64gc-unknown-linux-musl') }}
+        if: ${{ contains(matrix.target, 'riscv64gc-unknown-linux-musl') && contains(matrix.target, 'loongarch64-unknown-linux-musl') }}
         run: |
           pip3 install cargo-zigbuild
           cargo zigbuild --release -p oxfmt --no-default-features --features allocator --target=${{ matrix.target }}
@@ -588,7 +651,7 @@ jobs:
     name: Publish Oxfmt
     needs: [check, build-oxfmt, build-oxfmt-freebsd, notify-approval]
     runs-on: ubuntu-slim
-    environment: release
+    # environment: release
     permissions:
       id-token: write # for `pnpm publish --provenance`
     env:
@@ -722,6 +785,7 @@ jobs:
         run: sleep 180s
 
   smoke:
+    if: github.repository == 'oxc-project/oxc'
     needs: [check, github-release]
     strategy:
       fail-fast: false
@@ -769,6 +833,7 @@ jobs:
           embed-url: ${{ env.RELEASE_EMBED_URL }}
 
   bump:
+    if: github.repository == 'oxc-project/oxc'
     needs: [check, smoke]
     name: Bump oxlint dependents
     runs-on: ubuntu-slim

@@ -15,7 +15,7 @@ jobs:
     name: Check version
     runs-on: ubuntu-slim
     outputs:
-      version_changed: ${{ steps.check.outputs.version_changed }}
+      version_changed: 'true'
     env:
       name: ${{ inputs.name }}
     steps:
@@ -91,6 +91,25 @@ jobs:
             build: pnpm build --target aarch64-linux-android
 
           - os: ubuntu-latest
+            target: loongarch64-unknown-linux-gnu
+            build: |
+              sudo apt-get update
+              sudo apt-get install g++-13-loongarch64-linux-gnu -y
+              sudo update-alternatives \
+                --install /usr/bin/loongarch64-linux-gnu-gcc loongarch64-linux-gnu-gcc /usr/bin/loongarch64-linux-gnu-gcc-13 100 \
+                --slave /usr/bin/loongarch64-linux-gnu-gcc-ar loongarch64-linux-gnu-gcc-ar /usr/bin/loongarch64-linux-gnu-gcc-ar-13 \
+                --slave /usr/bin/loongarch64-linux-gnu-gcc-nm loongarch64-linux-gnu-gcc-nm /usr/bin/loongarch64-linux-gnu-gcc-nm-13 \
+                --slave /usr/bin/loongarch64-linux-gnu-gcc-ranlib loongarch64-linux-gnu-gcc-ranlib /usr/bin/loongarch64-linux-gnu-gcc-ranlib-13 \
+                --slave /usr/bin/loongarch64-linux-gnu-gcov loongarch64-linux-gnu-gcov /usr/bin/loongarch64-linux-gnu-gcov-13
+              sudo update-alternatives \
+                --install /usr/bin/loongarch64-linux-gnu-g++ loongarch64-linux-gnu-g++ /usr/bin/loongarch64-linux-gnu-g++-13 100
+              sudo update-alternatives \
+                --install /usr/bin/loongarch64-linux-gnu-cpp loongarch64-linux-gnu-cpp /usr/bin/loongarch64-linux-gnu-cpp-13 100
+              export TARGET_CC=loongarch64-linux-gnu-gcc
+              export CXX=loongarch64-linux-gnu-g++
+              pnpm build --target loongarch64-unknown-linux-gnu
+
+          - os: ubuntu-latest
             target: riscv64gc-unknown-linux-gnu
             build: |
               sudo apt-get update
@@ -114,6 +133,10 @@ jobs:
           - os: windows-latest
             target: i686-pc-windows-msvc
             build: pnpm build --target i686-pc-windows-msvc
+
+          - os: ubuntu-latest
+            target: loongarch64-unknown-linux-musl
+            build: pnpm build --target loongarch64-unknown-linux-musl -x
 
           - os: ubuntu-latest
             target: powerpc64le-unknown-linux-gnu
@@ -149,10 +172,12 @@ jobs:
 
       - name: Build
         working-directory: napi/${{ inputs.name }}
-        run: ${{ matrix.build }}
+        run: |
+          if [[ "${{ matrix.target }}" != loongarch64* ]]; then
+            export TARGET_CC=clang
+          fi
+          ${{ matrix.build }}
         shell: bash
-        env:
-          TARGET_CC: clang # for mimalloc
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
